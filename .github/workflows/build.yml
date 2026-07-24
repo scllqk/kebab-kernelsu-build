@@ -118,7 +118,8 @@ jobs:
           ./scripts/config --enable CONFIG_KALLSYMS
           ./scripts/config --enable CONFIG_KALLSYMS_ALL
 
-          ./scripts/config --disable CONFIG_SND_SOC_MSM8996_WCD9335 || true
+          # Fix: Disable techpack video driver (breaks with Clang 21/SukiSU)
+          ./scripts/config --disable CONFIG_MSM_VIDC_3X_V4L2 || true          ./scripts/config --disable CONFIG_SND_SOC_MSM8996_WCD9335 || true
           ./scripts/config --disable CONFIG_MSM_CAMERA || true
           ./scripts/config --disable CONFIG_VIDEO_MSM_CAMERA || true
 
