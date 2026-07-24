@@ -83,12 +83,12 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/osm0sis/AnyKernel3.git ~/AnyKernel3_${{ matrix.variant }}
 
-      - name: Integrate KernelSU
+      - name: Integrate SukiSU-Ultra
         env:
           KERNELSU_VERSION: ${{ inputs.kernelsu_version || 'main' }}
         run: |
           cd ~/android/kernel/oneplus/sm8250
-          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s $KERNELSU_VERSION
+          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s $KERNELSU_VERSION
 
       - name: Configure kernel - Base options
         run: |
@@ -112,6 +112,11 @@ jobs:
           ./scripts/config --enable CONFIG_KPROBES
           ./scripts/config --enable CONFIG_HAVE_KPROBES
           ./scripts/config --enable CONFIG_KPROBE_EVENTS
+
+          # KPM (Kernel Patch Module) for kernel-level hook & hide
+          ./scripts/config --enable CONFIG_KPM
+          ./scripts/config --enable CONFIG_KALLSYMS
+          ./scripts/config --enable CONFIG_KALLSYMS_ALL
 
           ./scripts/config --disable CONFIG_SND_SOC_MSM8996_WCD9335 || true
           ./scripts/config --disable CONFIG_MSM_CAMERA || true
@@ -261,8 +266,14 @@ jobs:
           ./scripts/config --disable CONFIG_DEBUG_MEMORY_INIT
 
           if [ "${{ matrix.features }}" = "sufs" ]; then
-            echo "Enabling SUFS..."
+            echo "Enabling SUFS + SUSFS..."
             ./scripts/config --enable CONFIG_KSU_SAFE_SECURITY_FILESYSTEM
+            # SUSFS - kernel-level root hiding
+            ./scripts/config --enable CONFIG_KSU_SUSFS
+            ./scripts/config --enable CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS
+            ./scripts/config --enable CONFIG_KSU_SUSFS_SPOOF_UNAME
+            # CONFIG_KSU_SUSFS_SUS_PATH is not set
+            # CONFIG_KSU_SUSFS_OPEN_REDIRECT is not set
           fi
 
           make olddefconfig
