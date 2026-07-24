@@ -1,0 +1,26 @@
+diff --git a/kernel/supercall/supercall.c b/kernel/supercall/supercall.c
+--- a/kernel/supercall/supercall.c
++++ b/kernel/supercall/supercall.c
+@@ -10,6 +10,13 @@
+ #include <linux/task_work.h>
+ #include <linux/uaccess.h>
+ #include <linux/version.h>
++
++/* Linux 4.19 task_work_add takes a bool notify flag, not TWA_*. */
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
++#define KSU_TWA_RESUME true
++#else
++#define KSU_TWA_RESUME TWA_RESUME
++#endif
+
+ #include "uapi/supercall.h"
+ #include "kpm/kpm.h"
+@@ -98,7 +105,7 @@
+         tw->outp = (int __user *)arg4;
+         tw->cb.func = ksu_install_fd_tw_func;
+
+-        if (task_work_add(current, &tw->cb, TWA_RESUME)) {
++        if (task_work_add(current, &tw->cb, KSU_TWA_RESUME)) {
+             kfree(tw);
+             pr_warn("install fd add task_work failed\n");
+         }

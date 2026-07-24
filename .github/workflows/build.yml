@@ -1,499 +1,72 @@
-name: Build KernelSU for OnePlus 8T
+name: Build SukiSU-Ultra for OnePlus 8T
 
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
     inputs:
       lineage_version:
-        description: 'LineageOS version branch'
+        description: 'LineageOS kernel branch'
         required: true
         default: 'lineage-23.2'
-      kernelsu_version:
-        description: 'KernelSU version/tag'
+      sukisu_version:
+        description: 'SukiSU-Ultra version'
         required: true
-        default: 'main'
+        default: 'v4.1.3'
 
 permissions:
   contents: write
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    container: ubuntu:22.04
-    strategy:
-      matrix:
-        include:
-          - variant: balanced
-            suffix: ""
-            features: "balanced"
-          - variant: unsigned
-            suffix: "-unsigned"
-            features: "unsigned"
-          - variant: sufs
-            suffix: "-sufs"
-            features: "sufs"
-          - variant: battery
-            suffix: "-battery"
-            features: "battery"
-          - variant: hide
-            suffix: "-hide"
-            features: "hide"
-          - variant: performance
-            suffix: "-performance"
-            features: "performance"
+    name: kebab / SukiSU-Ultra
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    env:
+      KERNEL_REF: ${{ inputs.lineage_version || 'lineage-23.2' }}
+      SUKISU_REF: ${{ inputs.sukisu_version || 'v4.1.3' }}
+      CLANG_VERSION: clang-r563880c
+      AOSP_TAG: android-16.0.0_r4
+      KERNEL_DIR: /tmp/kebab-kernel
+      OUT_DIR: /tmp/kebab-out
+      TOOLCHAIN_DIR: /tmp/kebab-clang
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v5
 
-      - name: Install dependencies
+      - name: Install deps
         run: |
-          apt-get update && apt-get install -y --no-install-recommends \
-            git curl wget flex bison build-essential \
-            libssl-dev libelf-dev python3 python3-pip \
-            bc automake lzop gperf zip unzip \
-            zlib1g-dev libxml2-utils bzip2 libbz2-dev \
-            squashfs-tools liblz4-tool libncurses5-dev \
-            cpio xz-utils device-tree-compiler \
-            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          sudo -S -p '' apt-get update
+          sudo -S -p '' apt-get install --no-install-recommends -y \
+            bc bison build-essential ca-certificates curl device-tree-compiler \
+            flex git libelf-dev libssl-dev lz4 python3 rsync unzip zip zstd
 
-      - name: Install Clang/LLVM toolchain
+      - name: Fetch kernel source
         run: |
-          apt-get install -y clang llvm lld
+          git init "${KERNEL_DIR}"
+          git -C "${KERNEL_DIR}" remote add origin \
+            https://github.com/LineageOS/android_kernel_oneplus_sm8250.git
+          git -C "${KERNEL_DIR}" fetch --depth=1 origin "${KERNEL_REF}"
+          git -C "${KERNEL_DIR}" checkout --detach FETCH_HEAD
 
-      - name: Set up git
+      - name: Fetch AOSP Clang toolchain
         run: |
-          git config --global user.email "github-actions@github.com"
-          git config --global user.name "GitHub Actions"
-          git config --global color.ui false
-
-      - name: Clone kernel + device + vendor source
-        env:
-          LINEAGE_VERSION: ${{ inputs.lineage_version || 'lineage-23.2' }}
-        run: |
-          mkdir -p ~/android && cd ~/android
-          git clone --depth 1 -b $LINEAGE_VERSION https://github.com/LineageOS/android_kernel_oneplus_sm8250.git kernel/oneplus/sm8250
-          git clone --depth 1 -b $LINEAGE_VERSION https://github.com/LineageOS/android_device_oneplus_kebab.git device/oneplus/kebab
-          git clone --depth 1 -b $LINEAGE_VERSION https://github.com/TheMuppets/proprietary_vendor_oneplus.git vendor/oneplus 2>/dev/null || true
-          ls kernel/oneplus/sm8250/arch/arm64/configs/vendor/
-
-      - name: Clone AnyKernel3
-        run: |
-          git clone --depth 1 https://github.com/osm0sis/AnyKernel3.git ~/AnyKernel3_${{ matrix.variant }}
-
-      - name: Integrate SukiSU-Ultra
-        env:
-          KERNELSU_VERSION: ${{ inputs.kernelsu_version || 'main' }}
-        run: |
-          cd ~/android/kernel/oneplus/sm8250
-          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s $KERNELSU_VERSION
-
-      - name: Configure kernel - Base options
-        run: |
-          cd ~/android/kernel/oneplus/sm8250
-
-          export ARCH=arm64
-          export SUBARCH=arm64
-          export CROSS_COMPILE=aarch64-linux-gnu-
-          export CC=clang
-          export CLANG_TRIPLE=aarch64-linux-gnu-
-          export LD=ld.lld
-          export AR=llvm-ar
-          export NM=llvm-nm
-          export OBJCOPY=llvm-objcopy
-          export OBJDUMP=llvm-objdump
-          export STRIP=llvm-strip
-
-          make vendor/kona-perf_defconfig
-
-          ./scripts/config --enable CONFIG_KSU
-          ./scripts/config --enable CONFIG_KPROBES
-          ./scripts/config --enable CONFIG_HAVE_KPROBES
-          ./scripts/config --enable CONFIG_KPROBE_EVENTS
-
-          # KPM (Kernel Patch Module) for kernel-level hook & hide
-          ./scripts/config --enable CONFIG_KPM
-          ./scripts/config --enable CONFIG_KALLSYMS
-          ./scripts/config --enable CONFIG_KALLSYMS_ALL
-
-          # Fix: Disable techpack video driver (breaks with Clang 21/SukiSU)
-          ./scripts/config --disable CONFIG_MSM_VIDC_3X_V4L2 || true
-          ./scripts/config --disable CONFIG_SND_SOC_MSM8996_WCD9335 || true
-          ./scripts/config --disable CONFIG_MSM_CAMERA || true
-          ./scripts/config --disable CONFIG_VIDEO_MSM_CAMERA || true
-
-      - name: Configure kernel - Balanced features (default)
-        if: matrix.features == 'balanced'
-        run: |
-          cd ~/android/kernel/oneplus/sm8250
-
-          export ARCH=arm64
-          export SUBARCH=arm64
-
-          echo "Enabling balanced features..."
-
-          # 文件系统优化
-          ./scripts/config --enable CONFIG_NTFS3_FS
-          ./scripts/config --enable CONFIG_EXFAT_FS
-          ./scripts/config --enable CONFIG_F2FS_FS
-          ./scripts/config --enable CONFIG_F2FS_FS_LZ4
-
-          # 网络优化
-          ./scripts/config --enable CONFIG_TCP_CONG_BBR
-          ./scripts/config --enable CONFIG_NET_RX_BUSY_POLL
-
-          # 内存优化
-          ./scripts/config --enable CONFIG_ZRAM
-          ./scripts/config --enable CONFIG_ZRAM_COMPRESSION_LZ4
-          ./scripts/config --set-val CONFIG_ZRAM_MEMORY_PERCENTAGE 50
-          ./scripts/config --set-val CONFIG_ZRAM_MAX_DEVICES 1
-          ./scripts/config --enable CONFIG_ZSWAP
-          ./scripts/config --enable CONFIG_TRANSPARENT_HUGEPAGE
-
-          # 调度优化
-          ./scripts/config --enable CONFIG_UCLAMP_TASK
-          ./scripts/config --enable CONFIG_CFS_BANDWIDTH
-          ./scripts/config --enable CONFIG_CPU_FREQ_GOV_SCHEDUTIL
-
-          # 编译优化
-          ./scripts/config --enable CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE
-          ./scripts/config --enable CONFIG_LTO_CLANG
-
-          make olddefconfig
-
-      - name: Configure kernel - Unsigned (Module Sig Bypass)
-        if: matrix.features == 'unsigned'
-        run: |
-          cd ~/android/kernel/oneplus/sm8250
-
-          export ARCH=arm64
-          export SUBARCH=arm64
-
-          echo "Enabling unsigned/bypass module signature features..."
-
-          # 文件系统优化
-          ./scripts/config --enable CONFIG_NTFS3_FS
-          ./scripts/config --enable CONFIG_EXFAT_FS
-          ./scripts/config --enable CONFIG_F2FS_FS
-          ./scripts/config --enable CONFIG_F2FS_FS_LZ4
-
-          # 网络优化
-          ./scripts/config --enable CONFIG_TCP_CONG_BBR
-          ./scripts/config --enable CONFIG_NET_RX_BUSY_POLL
-
-          # 内存优化
-          ./scripts/config --enable CONFIG_ZRAM
-          ./scripts/config --enable CONFIG_ZRAM_COMPRESSION_LZ4
-          ./scripts/config --set-val CONFIG_ZRAM_MEMORY_PERCENTAGE 50
-          ./scripts/config --set-val CONFIG_ZRAM_MAX_DEVICES 1
-          ./scripts/config --enable CONFIG_ZSWAP
-          ./scripts/config --enable CONFIG_TRANSPARENT_HUGEPAGE
-
-          # 调度优化
-          ./scripts/config --enable CONFIG_UCLAMP_TASK
-          ./scripts/config --enable CONFIG_CFS_BANDWIDTH
-          ./scripts/config --enable CONFIG_CPU_FREQ_GOV_SCHEDUTIL
-
-          # 编译优化
-          ./scripts/config --enable CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE
-          ./scripts/config --enable CONFIG_LTO_CLANG
-
-          # 过签名配置 - 禁用模块签名检查
-          ./scripts/config --disable CONFIG_MODULE_SIG
-          ./scripts/config --disable CONFIG_MODULE_SIG_FORCE
-          ./scripts/config --disable CONFIG_MODULE_SIG_ALL
-          ./scripts/config --disable CONFIG_SECURITY_LOCKDOWN_LSM
-
-          make olddefconfig
-
-      - name: Configure kernel - Battery saving features
-        if: matrix.features == 'battery'
-        run: |
-          cd ~/android/kernel/oneplus/sm8250
-
-          export ARCH=arm64
-          export SUBARCH=arm64
-
-          echo "Enabling battery saving features..."
-
-          # 文件系统优化
-          ./scripts/config --enable CONFIG_F2FS_FS
-          ./scripts/config --enable CONFIG_F2FS_FS_LZ4
-
-          # 内存优化（省电）
-          ./scripts/config --enable CONFIG_UCLAMP_TASK
-          ./scripts/config --enable CONFIG_UCLAMP_SCHED
-          ./scripts/config --enable CONFIG_ZSWAP
-          ./scripts/config --enable CONFIG_ZSWAP_DEFAULT_ON
-
-          # 电源管理
-          ./scripts/config --enable CONFIG_SUSPEND_TO_IDLE
-          ./scripts/config --enable CONFIG_PM_WAKELOCKS
-
-          # 调试关闭
-          ./scripts/config --disable CONFIG_DEBUG_FS
-          ./scripts/config --disable CONFIG_DEBUG_KERNEL
-
-          # 调度优化（省电）
-          ./scripts/config --enable CONFIG_CPU_FREQ_GOV_SCHEDUTIL
-          ./scripts/config --enable CONFIG_CPU_FREQ_GOV_POWERSAVE
-
-          make olddefconfig
-
-      - name: Configure kernel - Hide features
-        if: matrix.features == 'hide' || matrix.features == 'sufs'
-        run: |
-          cd ~/android/kernel/oneplus/sm8250
-
-          export ARCH=arm64
-          export SUBARCH=arm64
-
-          echo "Enabling hide features..."
-
-          # 基础文件系统
-          ./scripts/config --enable CONFIG_F2FS_FS
-
-          # 隐藏相关
-          ./scripts/config --enable CONFIG_KSU_HIDE_PID
-          ./scripts/config --enable CONFIG_KSU_UNSHARE
-          ./scripts/config --disable CONFIG_KALLSYMS_ALL
-          ./scripts/config --disable CONFIG_DEBUG_FS
-          ./scripts/config --disable CONFIG_PROC_KCORE
-
-          # 调试全部关闭
-          ./scripts/config --disable CONFIG_DEBUG_KERNEL
-          ./scripts/config --disable CONFIG_DEBUG_INFO
-          ./scripts/config --disable CONFIG_DEBUG_MEMORY_INIT
-
-          if [ "${{ matrix.features }}" = "sufs" ]; then
-            echo "Enabling SUFS + SUSFS..."
-            ./scripts/config --enable CONFIG_KSU_SAFE_SECURITY_FILESYSTEM
-            # SUSFS - kernel-level root hiding
-            ./scripts/config --enable CONFIG_KSU_SUSFS
-            ./scripts/config --enable CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS
-            ./scripts/config --enable CONFIG_KSU_SUSFS_SPOOF_UNAME
-            # CONFIG_KSU_SUSFS_SUS_PATH is not set
-            # CONFIG_KSU_SUSFS_OPEN_REDIRECT is not set
-          fi
-
-          make olddefconfig
-
-      - name: Configure kernel - Performance features
-        if: matrix.features == 'performance'
-        run: |
-          cd ~/android/kernel/oneplus/sm8250
-
-          export ARCH=arm64
-          export SUBARCH=arm64
-
-          echo "Enabling performance features..."
-
-          # 文件系统优化
-          ./scripts/config --enable CONFIG_NTFS3_FS
-          ./scripts/config --enable CONFIG_EXFAT_FS
-          ./scripts/config --enable CONFIG_F2FS_FS
-          ./scripts/config --enable CONFIG_F2FS_FS_LZ4
-
-          # 网络优化
-          ./scripts/config --enable CONFIG_TCP_CONG_BBR
-          ./scripts/config --enable CONFIG_NET_RX_BUSY_POLL
-
-          # 内存优化（性能优先）
-          ./scripts/config --enable CONFIG_ZRAM
-          ./scripts/config --enable CONFIG_ZRAM_COMPRESSION_LZ4
-          ./scripts/config --set-val CONFIG_ZRAM_MEMORY_PERCENTAGE 100
-          ./scripts/config --set-val CONFIG_ZRAM_MAX_DEVICES 1
-          ./scripts/config --enable CONFIG_TRANSPARENT_HUGEPAGE
-          ./scripts/config --enable CONFIG_KSM
-
-          # 调度优化（性能）
-          ./scripts/config --enable CONFIG_UCLAMP_TASK
-          ./scripts/config --enable CONFIG_SCHED_WALT
-          ./scripts/config --enable CONFIG_CFS_BANDWIDTH
-          ./scripts/config --enable CONFIG_CPU_FREQ_GOV_SCHEDUTIL
-          ./scripts/config --enable CONFIG_CPU_FREQ_GOV_PERFORMANCE
-
-          # 编译优化
-          ./scripts/config --enable CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE
-          ./scripts/config --enable CONFIG_LTO_CLANG
-
-          # 追踪/性能分析
-          ./scripts/config --enable CONFIG_FTRACE
-          ./scripts/config --enable CONFIG_FUNCTION_TRACER
-
-          make olddefconfig
+          git clone --depth=1 --filter=blob:none --sparse --branch "${AOSP_TAG}" \
+            https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 \
+            "${RUNNER_TEMP}/clang-prebuilts"
+          git -C "${RUNNER_TEMP}/clang-prebuilts" sparse-checkout set "${CLANG_VERSION}"
+          mv "${RUNNER_TEMP}/clang-prebuilts/${CLANG_VERSION}" "${TOOLCHAIN_DIR}"
+          "${TOOLCHAIN_DIR}/bin/clang" --version
 
       - name: Build kernel
-        run: |
-          cd ~/android/kernel/oneplus/sm8250
-
-          export ARCH=arm64
-          export SUBARCH=arm64
-          export CROSS_COMPILE=aarch64-linux-gnu-
-          export CC=clang
-          export CLANG_TRIPLE=aarch64-linux-gnu-
-          export LD=ld.lld
-          export AR=llvm-ar
-          export NM=llvm-nm
-          export OBJCOPY=llvm-objcopy
-          export OBJDUMP=llvm-objdump
-          export STRIP=llvm-strip
-
-          export KCFLAGS="-Wno-error"
-
-          make -j$(nproc) Image.gz dtbs 2>&1
-
-      - name: Prepare AnyKernel3
-        run: |
-          cd ~/android/kernel/oneplus/sm8250
-
-          ANYKERNEL_DIR=~/AnyKernel3_${{ matrix.variant }}
-
-          if [ -f arch/arm64/boot/Image.gz ]; then
-            cp arch/arm64/boot/Image.gz "$ANYKERNEL_DIR/"
-          elif [ -f arch/arm64/boot/Image ]; then
-            cp arch/arm64/boot/Image "$ANYKERNEL_DIR/Image.gz"
-          fi
-
-          if [ -d arch/arm64/boot/dts ]; then
-            cp -r arch/arm64/boot/dts "$ANYKERNEL_DIR/"
-          fi
-
-          TAG_NAME=${GITHUB_REF#refs/tags/}
-          echo "KernelSU-${{ inputs.kernelsu_version || 'main' }}-$TAG_NAME${{ matrix.suffix }}" > "$ANYKERNEL_DIR/version"
+        run: bash scripts/build-kernel.sh
 
       - name: Package AnyKernel3
-        run: |
-          ANYKERNEL_DIR=~/AnyKernel3_${{ matrix.variant }}
-          cd "$ANYKERNEL_DIR"
-          
-          chmod +x META-INF/com/google/android/update-binary
-          
-          HOME_DIR="$HOME"
-          zip -r9X "$HOME_DIR/KernelSU-kebab-${{ matrix.variant }}-$(date +%Y%m%d).zip" * -x .git README.md AnyKernel3.zip
-          ls -la "$HOME_DIR/KernelSU-kebab-${{ matrix.variant }}-"*.zip
+        run: bash scripts/package-anykernel.sh
 
-      - name: Upload AnyKernel3 zip
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: KernelSU-kebab-zip-${{ matrix.variant }}
-          path: ~/KernelSU-kebab-${{ matrix.variant }}-*.zip
+          name: kebab-sukisu-ultra-kpm
+          path: dist/
+          if-no-files-found: error
           retention-days: 30
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./dist/
-
-      - name: List files
-        run: ls -la ./dist/
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: ./dist/**/*.zip
-          body: |
-            ## OnePlus 8T (kebab) KernelSU
-
-            ### Build Info
-            - Device: OnePlus 8T (kebab)
-            - SoC: Qualcomm SM8250 (Snapdragon 865)
-            - KernelSU: ${{ inputs.kernelsu_version || 'main' }}
-            - Kernel branch: ${{ inputs.lineage_version || 'lineage-23.2' }}
-
-            ### Downloads
-
-            | Variant | Description | Features |
-            |---------|-------------|----------|
-            | `KernelSU-kebab-balanced-*.zip` | **Recommended** | BBRv3, F2FS+LZ4, NTFS3, exFAT, ZRAM 50%, ZSwap, THP, CFS, UClamp, LTO |
-            | `KernelSU-kebab-unsigned-*.zip` | Module Sig Bypass | Balanced + 禁用模块签名检查 (游戏外挂) |
-            | `KernelSU-kebab-sufs-*.zip` | SUFS version | Safe Security FileSystem + Full Hide features + all debug off |
-            | `KernelSU-kebab-battery-*.zip` | Battery saving | UClamp, ZSwap, S2IDLE, Wakelocks, DEBUG_FS off, powersave governor |
-            | `KernelSU-kebab-hide-*.zip` | Hide enhanced | HidePID, Unshare, KALLSYMS off, DEBUG off, PROC_KCORE off |
-            | `KernelSU-kebab-performance-*.zip` | Performance | BBRv3, F2FS+LZ4, NTFS3, exFAT, ZRAM 1:1, KSM, THP, CFS, WALT, UClamp, LTO, FTRACE |
-
-            ### Feature Details
-
-            **⚖️ Balanced (推荐):**
-            - TCP BBRv3 congestion control
-            - F2FS + LZ4 compression
-            - NTFS3 & exFAT support
-            - ZRAM (50% RAM)
-            - ZSwap compression
-            - Transparent Hugepage
-            - UClamp task scheduling
-            - CFS Bandwidth
-            - Schedutil governor
-            - Clang LTO optimization
-            - CC_OPTIMIZE_FOR_PERFORMANCE
-
-            **🔓 Unsigned (模块签名过签):**
-            - 基于 Balanced 所有功能
-            - 禁用 MODULE_SIG (模块签名检查)
-            - 禁用 MODULE_SIG_FORCE
-            - 禁用 MODULE_SIG_ALL
-            - 禁用 SECURITY_LOCKDOWN_LSM
-            - 可加载未签名内核模块
-            - 适用于游戏外挂/作弊工具
-
-            **🔋 Battery Saving:**
-            - UClamp task scheduling
-            - ZSwap (default on)
-            - S2IDLE (deeper idle)
-            - Wake locks control
-            - DEBUG_FS off (save power)
-            - Powersave CPU governor
-            - Schedutil governor
-            - F2FS filesystem
-
-            **🎭 Hide Features:**
-            - KSU HidePID2
-            - KSU Unshare
-            - KALLSYMS_ALL disabled
-            - DEBUG_FS disabled
-            - PROC_KCORE disabled
-            - DEBUG_KERNEL disabled
-            - DEBUG_INFO disabled
-            - DEBUG_MEMORY_INIT disabled
-
-            **🛡️ SUFS:**
-            - All Hide features
-            - Safe Security FileSystem
-
-            **⚡ Performance:**
-            - TCP BBRv3 congestion control
-            - F2FS + LZ4 compression
-            - NTFS3 & exFAT support
-            - ZRAM (100% RAM, 1:1)
-            - KSM (Kernel Same-page Merging)
-            - Transparent Hugepage
-            - UClamp task scheduling
-            - WALT scheduling
-            - CFS Bandwidth
-            - Performance + Schedutil governors
-            - Clang LTO optimization
-            - CC_OPTIMIZE_FOR_PERFORMANCE
-            - FTrace debugging support
-
-            ### Installation
-            1. Flash via TWRP: Flash the zip in recovery
-            2. Or flash via fastboot:
-               ```
-               fastboot flash boot boot.img
-               ```
-            3. Install KernelSU Manager from GitHub Releases
-
-            ### Notes
-            - Built from android_kernel_oneplus_sm8250 (${{ inputs.lineage_version || 'lineage-23.2' }})
-            - Use at your own risk!
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

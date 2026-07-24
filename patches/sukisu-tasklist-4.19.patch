@@ -1,0 +1,14 @@
+diff --git a/kernel/supercall/dispatch.c b/kernel/supercall/dispatch.c
+--- a/kernel/supercall/dispatch.c
++++ b/kernel/supercall/dispatch.c
+@@ -4,6 +4,10 @@
+ #include <linux/vmalloc.h>
+ #include <linux/uaccess.h>
+ #include <linux/version.h>
++#include <linux/sched.h>
++#include <linux/pid.h>
++/* tasklist_lock / init_task / task_pgrp / task_session for do_set_init_pgrp */
++#include <linux/init_task.h>
+
+ #include "uapi/supercall.h"
+ #include "supercall/internal.h"

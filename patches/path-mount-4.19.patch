@@ -1,0 +1,25 @@
+diff --git a/fs/namespace.c b/fs/namespace.c
+--- a/fs/namespace.c
++++ b/fs/namespace.c
+@@ -1799,6 +1799,24 @@ int path_umount(struct path *path, int flags)
+ 	return ret;
+ }
+
++/*
++ * Minimal path_mount for Linux 4.19 (SukiSU-Ultra needs MS_PRIVATE|MS_REC).
++ * Full path_mount arrived later; do_change_type is static in this file.
++ */
++int path_mount(const char *dev_name, struct path *path,
++	       const char *type_page, unsigned long flags, void *data_page)
++{
++	unsigned long prop = flags & (MS_SHARED | MS_PRIVATE | MS_SLAVE |
++				      MS_UNBINDABLE | MS_REC);
++
++	if (prop && !(flags & ~prop) && !dev_name && !type_page && !data_page)
++		return do_change_type(path, flags);
++
++	/* Other mount operations are not required by this kernel build. */
++	return -ENOSYS;
++}
++
+ static bool is_mnt_ns_file(struct dentry *dentry)
