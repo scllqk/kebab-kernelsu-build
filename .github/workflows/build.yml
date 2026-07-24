@@ -83,12 +83,12 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/osm0sis/AnyKernel3.git ~/AnyKernel3_${{ matrix.variant }}
 
-      - name: Integrate SukiSU-Ultra
+      - name: Integrate KernelSU + KPM
         env:
           KERNELSU_VERSION: ${{ inputs.kernelsu_version || 'main' }}
         run: |
           cd ~/android/kernel/oneplus/sm8250
-          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s $KERNELSU_VERSION
+          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s $KERNELSU_VERSION
 
       - name: Configure kernel - Base options
         run: |
@@ -341,7 +341,7 @@ jobs:
 
           export KCFLAGS="-Wno-error"
 
-          make -j$(nproc) Image.gz dtbs 2>&1 | tail -n 500
+          make -j$(nproc) Image.gz dtbs 2>&1
 
       - name: Prepare AnyKernel3
         run: |
