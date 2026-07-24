@@ -255,8 +255,7 @@ for required in \
   CONFIG_KALLSYMS=y \
   CONFIG_KALLSYMS_ALL=y \
   CONFIG_EXT4_FS=y \
-  CONFIG_OVERLAY_FS=y \
-  CONFIG_KSU_SUSFS=y; do
+  CONFIG_OVERLAY_FS=y; do
   grep -qx "${required}" "${OUT_DIR}/.config" || {
     echo "Required setting is missing after olddefconfig: ${required}" >&2
     exit 1
