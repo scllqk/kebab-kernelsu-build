@@ -58,7 +58,7 @@ jobs:
             sudo cp /tmp/mkbootimg/mkbootimg.py /usr/local/bin/mkbootimg
             echo "Using AOSP mkbootimg (kernel source didn't have it)"
           fi
-          chmod +x /usr/local/bin/mkbootimg
+          sudo chmod +x /usr/local/bin/mkbootimg
           mkbootimg --help 2>&1 | head -1
 
       - name: Fetch AOSP Clang toolchain
