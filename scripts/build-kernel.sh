@@ -29,11 +29,13 @@ echo "Integrating SukiSU-Ultra ${SUKISU_REF}"
 )
 
 echo "=== Applying SUSFS (kernel-level hiding) ==="
+SUSFS_REPO="https://gitlab.com/shoey63/susfs4ksu/raw/master"
 (
   cd "${KERNEL_DIR}"
-  curl -LSs "https://gitlab.com/simonpunk/susfs4ksu/-/raw/main/kernel_patches/50_add_susfs_in_kernel-4.19.patch" | patch -p1 -f 2>/dev/null || echo "  (patch may already be applied)"
-  curl -LSs "https://gitlab.com/simonpunk/susfs4ksu/-/raw/main/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch" | patch -p1 -f 2>/dev/null || echo "  (KSU patch - may not apply cleanly)"
+  curl -LSs "${SUSFS_REPO}/kernel_patches/50_add_susfs_in_kernel-4.19.patch" | patch -p1
+  curl -LSs "${SUSFS_REPO}/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch" | patch -p1
 )
+echo "  SUSFS patches applied"
 
 echo "Backporting path_umount for Linux 4.19"
 if ! grep -q '^int path_umount(struct path \*path, int flags)' \
@@ -262,7 +264,8 @@ for required in \
   CONFIG_KALLSYMS=y \
   CONFIG_KALLSYMS_ALL=y \
   CONFIG_EXT4_FS=y \
-  CONFIG_OVERLAY_FS=y; do
+  CONFIG_OVERLAY_FS=y \
+  CONFIG_KSU_SUSFS=y; do
   grep -qx "${required}" "${OUT_DIR}/.config" || {
     echo "Required setting is missing after olddefconfig: ${required}" >&2
     exit 1
