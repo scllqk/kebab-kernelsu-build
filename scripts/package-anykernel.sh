@@ -22,14 +22,18 @@ cp "${DIST_DIR}/build-info.txt" "${PACKAGE_DIR}/build-info.txt"
 sha256sum "${DIST_DIR}/Image" "${DIST_DIR}/${ZIP_NAME}" > "${DIST_DIR}/SHA256SUMS"
 
 echo ""
-echo "=== Creating boot.img ==="
-# Note: This boot.img has NO ramdisk (uses /dev/null)
-# - Use "fastboot boot boot.img" for TESTING (safe, no write)
-# - Use AnyKernel3 zip for PRODUCTION flashing (preserves device ramdisk)
-mkbootimg --kernel "${DIST_DIR}/Image" --ramdisk /dev/null \
-    --pagesize 4096 --base 0x00000000 --header_version 2 \
-    -o "${DIST_DIR}/boot.img"
-echo "  boot.img: $(ls -lh ${DIST_DIR}/boot.img | awk '{print $5}')"
-echo "  Usage: fastboot boot ${DIST_DIR}/boot.img  (test)"
-echo "  Flash: use AnyKernel3 zip (preserves your device's ramdisk)"
+echo "=== Creating boot.img (with ramdisk for fastboot flash) ==="
+# Use stock boot.img from repo for ramdisk
+STOCK_BOOT="${ROOT_DIR}/stock-boot-kebab.img"
+MAGISKBOOT="${PACKAGE_DIR}/tools/magiskboot"
+if [ -f "${STOCK_BOOT}" ] && [ -f "${MAGISKBOOT}" ]; then
+  cd "${PACKAGE_DIR}"
+  "${MAGISKBOOT}" unpack "${STOCK_BOOT}"
+  cp -f "${DIST_DIR}/Image" kernel
+  "${MAGISKBOOT}" repack "${STOCK_BOOT}" "${DIST_DIR}/boot.img"
+  echo "  boot.img: $(ls -lh ${DIST_DIR}/boot.img | awk '{print $5}')"
+  echo "  Usage: fastboot flash boot ${DIST_DIR}/boot.img"
+else
+  echo "  boot.img not created"
+fi
 echo "=== Done ==="
