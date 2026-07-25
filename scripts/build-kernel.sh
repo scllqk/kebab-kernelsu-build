@@ -256,6 +256,24 @@ make "${make_args[@]}" olddefconfig
 
 # SUSFS & hardening: force-set after olddefconfig (Kconfig may not resolve
 # correctly for sub-options via olddefconfig alone)
+# Also ensure SUSFS Kconfig entries exist so syncconfig doesn't drop them
+SUSFS_KCONFIG="${KERNEL_DIR}/KernelSU/kernel/Kconfig"
+if [ -f "${SUSFS_KCONFIG}" ]; then
+  for cfg_name in \
+    KSU_SUSFS KSU_SUSFS_SUS_PATH KSU_SUSFS_SUS_MOUNT \
+    KSU_SUSFS_SPOOF_UNAME KSU_SUSFS_ENABLE_LOG; do
+    if ! grep -q "^config ${cfg_name}$" "${SUSFS_KCONFIG}"; then
+      cat >> "${SUSFS_KCONFIG}" << KCONFIG
+
+config ${cfg_name}
+\tbool "SUSFS ${cfg_name#KSU_SUSFS_}"
+\tdefault y
+KCONFIG
+      echo "  Added Kconfig entry: ${cfg_name}"
+    fi
+  done
+fi
+
 for opt in \
   CONFIG_KSU_SUSFS=y \
   CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y \
