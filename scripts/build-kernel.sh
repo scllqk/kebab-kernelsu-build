@@ -28,42 +28,11 @@ echo "Integrating SukiSU-Ultra ${SUKISU_REF}"
     | sh -s "${SUKISU_REF}"
 )
 
-echo "=== Applying SUSFS (kernel-level hiding) ==="
-SUSFS_REPO="https://gitlab.com/simonpunk/susfs4ksu/raw/master"
-(
-  cd "${KERNEL_DIR}"
-  curl -LSs "${SUSFS_REPO}/kernel_patches/50_add_susfs_in_kernel-4.19.patch" | patch -p1 -f || echo "  (1 hunk may be rejected - non-critical)"
-  curl -LSs "${SUSFS_REPO}/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch" | patch -p1 -f || echo "  (KSU patch - non-critical hunk rejected)"
-)
-# Create stub susfs.h if missing (patch modifies source to include it, but
-# the actual header is in the external susfs4ksu-module KPM module)
-if [ ! -f "${KERNEL_DIR}/include/linux/susfs.h" ]; then
-  cat > "${KERNEL_DIR}/include/linux/susfs.h" << 'HEADER'
-#ifndef _LINUX_SUSFS_H
-#define _LINUX_SUSFS_H
-/* SUSFS stub - real implementation is in the susfs4ksu-module KPM module.
- * These declarations satisfy compilation of the in-kernel SUSFS hooks. */
-#include <linux/types.h>
-#include <linux/fs.h>
-#include <linux/dcache.h>
-static inline bool susfs_is_current_ksud(void) { return false; }
-static inline bool susfs_is_allow_su(void) { return true; }
-static inline int susfs_task_early_fixup(struct task_struct *t) { return 0; }
-static inline void susfs_path_hook(struct path *p) { }
-static inline void susfs_dentry_hook(struct dentry *d) { }
-static inline int susfs_stat_hook(struct kstat *s) { return 0; }
-static inline int susfs_readdir_hook(struct dir_context *ctx) { return 0; }
-static inline void susfs_proc_base_hook(struct task_struct *t) { }
-static inline int susfs_show_options_hook(struct seq_file *m, struct dentry *d) { return 0; }
-static inline int susfs_uname_hook(struct new_utsname *n) { return 0; }
-#endif
-HEADER
-  echo "  Created stub include/linux/susfs.h"
-fi
-echo "  SUSFS patches applied"
+echo "=== Applying SUSFS (kernel-level hiding - via KSU built-in) ==="
+# SUSFS via KSU built-in options below (SAFE_SECURITY_FILESYSTEM + HIDE_PID + UNSHARE)
+echo "  Using KSU built-in: SAFE_SECURITY_FILESYSTEM + HIDE_PID + UNSHARE"
 
-# Create stub susfs.h if missing (SUSFS kernel patch expects it, but the
-# actual header lives in the external susfs4ksu-module KPM module)
+echo "Backporting path_umount for Linux 4.19"
 if [ ! -f "${KERNEL_DIR}/include/linux/susfs.h" ]; then
   cat > "${KERNEL_DIR}/include/linux/susfs.h" << 'HEADER'
 #ifndef _LINUX_SUSFS_H
@@ -305,9 +274,6 @@ make "${make_args[@]}" olddefconfig
 # SUSFS & hardening: force-set after olddefconfig (Kconfig may not resolve
 # correctly for sub-options via olddefconfig alone)
 for opt in \
-  CONFIG_KSU_SUSFS=y \
-  CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y \
-  CONFIG_KSU_SUSFS_SPOOF_UNAME=y \
   CONFIG_KSU_SAFE_SECURITY_FILESYSTEM=y \
   CONFIG_KSU_HIDE_PID=y \
   CONFIG_KSU_UNSHARE=y; do
