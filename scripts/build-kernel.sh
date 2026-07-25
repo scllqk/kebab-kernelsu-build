@@ -29,7 +29,7 @@ echo "Integrating SukiSU-Ultra ${SUKISU_REF}"
 )
 
 echo "=== Applying SUSFS (kernel-level hiding) ==="
-SUSFS_REPO="https://gitlab.com/shoey63/susfs4ksu/raw/master"
+SUSFS_REPO="https://gitlab.com/simonpunk/susfs4ksu/raw/master"
 (
   cd "${KERNEL_DIR}"
   curl -LSs "${SUSFS_REPO}/kernel_patches/50_add_susfs_in_kernel-4.19.patch" | patch -p1
