@@ -24,19 +24,17 @@ sha256sum "${DIST_DIR}/Image" "${DIST_DIR}/${ZIP_NAME}" > "${DIST_DIR}/SHA256SUM
 echo ""
 echo ""
 echo "=== Creating boot.img ==="
-mkbootimg --kernel "${DIST_DIR}/Image" \
-    --ramdisk /dev/null \
-    --pagesize 4096 \
-    --base 0x00000000 \
-    --header_version 2 \
-    -o "${DIST_DIR}/boot.img" 2>/dev/null || \
-python3 "${KERNEL_DIR}/scripts/mkbootimg/mkbootimg.py" \
-    --kernel "${DIST_DIR}/Image" \
-    --ramdisk /dev/null \
-    --pagesize 4096 \
-    --base 0x00000000 \
-    --header_version 2 \
-    -o "${DIST_DIR}/boot.img" 2>/dev/null || \
-echo "boot.img creation skipped (no mkbootimg)"
-test -f "${DIST_DIR}/boot.img" && ls -lh "${DIST_DIR}/boot.img" || echo "  (boot.img not available)"
+if command -v mkbootimg &>/dev/null; then
+    mkbootimg --kernel "${DIST_DIR}/Image" --ramdisk /dev/null \
+        --pagesize 4096 --base 0x00000000 --header_version 2 \
+        -o "${DIST_DIR}/boot.img"
+elif [ -f "/usr/local/bin/mkbootimg" ]; then
+    python3 /usr/local/bin/mkbootimg \
+        --kernel "${DIST_DIR}/Image" --ramdisk /dev/null \
+        --pagesize 4096 --base 0x00000000 --header_version 2 \
+        -o "${DIST_DIR}/boot.img"
+else
+    echo "  boot.img not created"
+fi
+test -f "${DIST_DIR}/boot.img" && ls -lh "${DIST_DIR}/boot.img" || true
 echo "=== Done ==="
