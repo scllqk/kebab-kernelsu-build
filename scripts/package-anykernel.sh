@@ -22,6 +22,7 @@ cp "${DIST_DIR}/build-info.txt" "${PACKAGE_DIR}/build-info.txt"
 sha256sum "${DIST_DIR}/Image" "${DIST_DIR}/${ZIP_NAME}" > "${DIST_DIR}/SHA256SUMS"
 
 echo ""
+echo ""
 echo "=== Creating boot.img ==="
 mkbootimg --kernel "${DIST_DIR}/Image" \
     --ramdisk /dev/null \
@@ -37,5 +38,5 @@ python3 "${KERNEL_DIR}/scripts/mkbootimg/mkbootimg.py" \
     --header_version 2 \
     -o "${DIST_DIR}/boot.img" 2>/dev/null || \
 echo "boot.img creation skipped (no mkbootimg)"
-ls -lh "${DIST_DIR}/boot.img" 2>/dev/null
+test -f "${DIST_DIR}/boot.img" && ls -lh "${DIST_DIR}/boot.img" || echo "  (boot.img not available)"
 echo "=== Done ==="
