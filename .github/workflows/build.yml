@@ -50,7 +50,7 @@ jobs:
 
       - name: Setup mkbootimg
         run: |
-          sudo cp "${{ runner.temp }}/kernel/scripts/mkbootimg/mkbootimg.py" /usr/local/bin/mkbootimg
+          sudo cp "${KERNEL_DIR}/scripts/mkbootimg/mkbootimg.py" /usr/local/bin/mkbootimg
           echo "mkbootimg ready"
 
       - name: Fetch AOSP Clang toolchain
