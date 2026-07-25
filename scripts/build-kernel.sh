@@ -263,13 +263,13 @@ for opt in \
   CONFIG_KSU_SAFE_SECURITY_FILESYSTEM=y \
   CONFIG_KSU_HIDE_PID=y \
   CONFIG_KSU_UNSHARE=y; do
-  name="\${opt%=*}"; val="\${opt#*=}"
-  if grep -q "^\${name}=" "\${OUT_DIR}/.config"; then
-    sed -i "s/^\${name}=.*/\${name}=\${val}/" "\${OUT_DIR}/.config"
+  name="${opt%=*}"; val="${opt#*=}"
+  if grep -q "^${name}=" "${OUT_DIR}/.config"; then
+    sed -i "s/^${name}=.*/${name}=${val}/" "${OUT_DIR}/.config"
   else
-    echo "\${name}=\${val}" >> "\${OUT_DIR}/.config"
+    echo "${name}=${val}" >> "${OUT_DIR}/.config"
   fi
-  echo "  Force-set \${name}=\${val}"
+  echo "  Force-set ${name}=${val}"
 done
 
 # Disable debug/trace features (hardening - harder for apps to detect root)
@@ -278,11 +278,11 @@ for opt in \
   CONFIG_PROC_KCORE=n \
   CONFIG_DEBUG_KERNEL=n \
   CONFIG_DEBUG_INFO=n; do
-  name="\${opt%=*}"; val="\${opt#*=}"
-  grep -q "^\${name}=" "\${OUT_DIR}/.config" && \
-    sed -i "s/^\${name}=.*/\${name}=\${val}/" "\${OUT_DIR}/.config" || \
-    echo "\${name}=\${val}" >> "\${OUT_DIR}/.config"
-  echo "  Disabled \${name}"
+  name="${opt%=*}"; val="${opt#*=}"
+  grep -q "^${name}=" "${OUT_DIR}/.config" && \
+    sed -i "s/^${name}=.*/${name}=${val}/" "${OUT_DIR}/.config" || \
+    echo "${name}=${val}" >> "${OUT_DIR}/.config"
+  echo "  Disabled ${name}"
 done
 
 echo "Building Image"
