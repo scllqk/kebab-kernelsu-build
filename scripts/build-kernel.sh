@@ -272,8 +272,8 @@ for required in \
   }
 done
 
-# SUSFS: force-set after olddefconfig (patches are in kernel tree, Kconfig may
-# not resolve correctly for all sub-options via olddefconfig alone)
+# SUSFS & hardening: force-set after olddefconfig (Kconfig may not resolve
+# correctly for sub-options via olddefconfig alone)
 for opt in \
   CONFIG_KSU_SUSFS=y \
   CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y \
@@ -281,37 +281,30 @@ for opt in \
   CONFIG_KSU_SAFE_SECURITY_FILESYSTEM=y \
   CONFIG_KSU_HIDE_PID=y \
   CONFIG_KSU_UNSHARE=y; do
-  name="${opt%=*}"
-  val="${opt#*=}"
-  if grep -q "^${name}=" "${OUT_DIR}/.config"; then
-    if ! grep -qx "${name}=${val}" "${OUT_DIR}/.config"; then
-      sed -i "s/^${name}=.*/${name}=${val}/" "${OUT_DIR}/.config"
-      echo "  Fixed ${name}=${val}"
-    fi
+  name="\${opt%=*}"; val="\${opt#*=}"
+  if grep -q "^\${name}=" "\${OUT_DIR}/.config"; then
+    sed -i "s/^\${name}=.*/\${name}=\${val}/" "\${OUT_DIR}/.config"
   else
-    echo "${name}=${val}" >> "${OUT_DIR}/.config"
-    echo "  Added ${name}=${val}"
+    echo "\${name}=\${val}" >> "\${OUT_DIR}/.config"
   fi
+  echo "  Force-set \${name}=\${val}"
 done
 
-# Disable debug/trace features that expose kernel internals to userspace
-# (bmbxwbh approach - makes kernel harder to detect by anti-rooting apps)
+# Disable debug/trace features (hardening - harder for apps to detect root)
 for opt in \
   CONFIG_DEBUG_FS=n \
   CONFIG_PROC_KCORE=n \
   CONFIG_DEBUG_KERNEL=n \
   CONFIG_DEBUG_INFO=n; do
-  name="${opt%=*}"
-  val="${opt#*=}"
-  if grep -q "^${name}=" "${OUT_DIR}/.config"; then
-    sed -i "s/^${name}=.*/${name}=${val}/" "${OUT_DIR}/.config"
-  else
-    echo "${name}=${val}" >> "${OUT_DIR}/.config"
-  fi
-  echo "  Disabled ${name} (hardening)"
+  name="\${opt%=*}"; val="\${opt#*=}"
+  grep -q "^\${name}=" "\${OUT_DIR}/.config" && \
+    sed -i "s/^\${name}=.*/\${name}=\${val}/" "\${OUT_DIR}/.config" || \
+    echo "\${name}=\${val}" >> "\${OUT_DIR}/.config"
+  echo "  Disabled \${name}"
 done
 
-echo "Building Image"
+# Verify core features (SUSFS is force-set above, skip here)
+for required in \
 make -j"$(nproc)" "${make_args[@]}" Image
 
 image_path="${OUT_DIR}/arch/arm64/boot/Image"
