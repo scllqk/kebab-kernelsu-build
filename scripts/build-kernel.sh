@@ -28,6 +28,13 @@ echo "Integrating SukiSU-Ultra ${SUKISU_REF}"
     | sh -s "${SUKISU_REF}"
 )
 
+echo "=== Applying SUSFS (kernel-level hiding) ==="
+(
+  cd "${KERNEL_DIR}"
+  curl -LSs "https://gitlab.com/simonpunk/susfs4ksu/-/raw/main/kernel_patches/50_add_susfs_in_kernel-4.19.patch" | patch -p1 -f 2>/dev/null || echo "  (patch may already be applied)"
+  curl -LSs "https://gitlab.com/simonpunk/susfs4ksu/-/raw/main/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch" | patch -p1 -f 2>/dev/null || echo "  (KSU patch - may not apply cleanly)"
+)
+
 echo "Backporting path_umount for Linux 4.19"
 if ! grep -q '^int path_umount(struct path \*path, int flags)' \
   "${KERNEL_DIR}/fs/namespace.c"; then
