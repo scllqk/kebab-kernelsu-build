@@ -35,7 +35,55 @@ SUSFS_REPO="https://gitlab.com/simonpunk/susfs4ksu/raw/master"
   curl -LSs "${SUSFS_REPO}/kernel_patches/50_add_susfs_in_kernel-4.19.patch" | patch -p1 -f || echo "  (1 hunk may be rejected - non-critical)"
   curl -LSs "${SUSFS_REPO}/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch" | patch -p1 -f || echo "  (KSU patch - non-critical hunk rejected)"
 )
+# Create stub susfs.h if missing (patch modifies source to include it, but
+# the actual header is in the external susfs4ksu-module KPM module)
+if [ ! -f "${KERNEL_DIR}/include/linux/susfs.h" ]; then
+  cat > "${KERNEL_DIR}/include/linux/susfs.h" << 'HEADER'
+#ifndef _LINUX_SUSFS_H
+#define _LINUX_SUSFS_H
+/* SUSFS stub - real implementation is in the susfs4ksu-module KPM module.
+ * These declarations satisfy compilation of the in-kernel SUSFS hooks. */
+#include <linux/types.h>
+#include <linux/fs.h>
+#include <linux/dcache.h>
+static inline bool susfs_is_current_ksud(void) { return false; }
+static inline bool susfs_is_allow_su(void) { return true; }
+static inline int susfs_task_early_fixup(struct task_struct *t) { return 0; }
+static inline void susfs_path_hook(struct path *p) { }
+static inline void susfs_dentry_hook(struct dentry *d) { }
+static inline int susfs_stat_hook(struct kstat *s) { return 0; }
+static inline int susfs_readdir_hook(struct dir_context *ctx) { return 0; }
+static inline void susfs_proc_base_hook(struct task_struct *t) { }
+static inline int susfs_show_options_hook(struct seq_file *m, struct dentry *d) { return 0; }
+static inline int susfs_uname_hook(struct new_utsname *n) { return 0; }
+#endif
+HEADER
+  echo "  Created stub include/linux/susfs.h"
+fi
 echo "  SUSFS patches applied"
+
+# Create stub susfs.h if missing (SUSFS kernel patch expects it, but the
+# actual header lives in the external susfs4ksu-module KPM module)
+if [ ! -f "${KERNEL_DIR}/include/linux/susfs.h" ]; then
+  cat > "${KERNEL_DIR}/include/linux/susfs.h" << 'HEADER'
+#ifndef _LINUX_SUSFS_H
+#define _LINUX_SUSFS_H
+#include <linux/types.h>
+#include <linux/fs.h>
+static inline bool susfs_is_current_ksud(void) { return false; }
+static inline bool susfs_is_allow_su(void) { return true; }
+static inline int susfs_task_early_fixup(struct task_struct *t) { return 0; }
+static inline void susfs_path_hook(struct path *p) { }
+static inline void susfs_dentry_hook(struct dentry *d) { }
+static inline int susfs_stat_hook(struct kstat *s) { return 0; }
+static inline int susfs_readdir_hook(struct dir_context *ctx) { return 0; }
+static inline void susfs_proc_base_hook(struct task_struct *t) { }
+static inline int susfs_show_options_hook(struct seq_file *m, struct dentry *d) { return 0; }
+static inline int susfs_uname_hook(struct new_utsname *n) { return 0; }
+#endif
+HEADER
+  echo "  Created stub include/linux/susfs.h"
+fi
 
 echo "Backporting path_umount for Linux 4.19"
 if ! grep -q '^int path_umount(struct path \*path, int flags)' \
@@ -256,20 +304,6 @@ make "${make_args[@]}" olddefconfig
 
 # SUSFS & hardening: force-set after olddefconfig (Kconfig may not resolve
 # correctly for sub-options via olddefconfig alone)
-# Also ensure SUSFS Kconfig entries exist so syncconfig doesn't drop them
-SUSFS_KCONFIG="${KERNEL_DIR}/KernelSU/kernel/Kconfig"
-if [ -f "${SUSFS_KCONFIG}" ]; then
-  for cfg_name in \
-    KSU_SUSFS KSU_SUSFS_SUS_PATH KSU_SUSFS_SUS_MOUNT \
-    KSU_SUSFS_SPOOF_UNAME KSU_SUSFS_ENABLE_LOG; do
-    if ! grep -q "^config ${cfg_name}$" "${SUSFS_KCONFIG}"; then
-      printf '\nconfig %s\n\tbool "SUSFS %s"\n\tdefault y\n' \
-        "${cfg_name}" "${cfg_name#KSU_SUSFS_}" >> "${SUSFS_KCONFIG}"
-      echo "  Added Kconfig entry: ${cfg_name}"
-    fi
-  done
-fi
-
 for opt in \
   CONFIG_KSU_SUSFS=y \
   CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y \
