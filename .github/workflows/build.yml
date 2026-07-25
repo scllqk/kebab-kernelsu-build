@@ -48,7 +48,7 @@ jobs:
           git -C "${KERNEL_DIR}" fetch --depth=1 origin "${KERNEL_REF}"
           git -C "${KERNEL_DIR}" checkout --detach FETCH_HEAD
 
-            - name: Setup mkbootimg
+      - name: Setup mkbootimg
         run: |
           sudo cp "${{ runner.temp }}/kernel/scripts/mkbootimg/mkbootimg.py" /usr/local/bin/mkbootimg
           echo "mkbootimg ready"
