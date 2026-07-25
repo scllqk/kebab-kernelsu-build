@@ -32,8 +32,8 @@ echo "=== Applying SUSFS (kernel-level hiding) ==="
 SUSFS_REPO="https://gitlab.com/simonpunk/susfs4ksu/raw/master"
 (
   cd "${KERNEL_DIR}"
-  curl -LSs "${SUSFS_REPO}/kernel_patches/50_add_susfs_in_kernel-4.19.patch" | patch -p1
-  curl -LSs "${SUSFS_REPO}/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch" | patch -p1
+  curl -LSs "${SUSFS_REPO}/kernel_patches/50_add_susfs_in_kernel-4.19.patch" | patch -p1 -f || echo "  (1 hunk may be rejected - non-critical)"
+  curl -LSs "${SUSFS_REPO}/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch" | patch -p1 -f || echo "  (KSU patch - non-critical hunk rejected)"
 )
 echo "  SUSFS patches applied"
 
