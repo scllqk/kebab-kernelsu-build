@@ -22,19 +22,26 @@ cp "${DIST_DIR}/build-info.txt" "${PACKAGE_DIR}/build-info.txt"
 sha256sum "${DIST_DIR}/Image" "${DIST_DIR}/${ZIP_NAME}" > "${DIST_DIR}/SHA256SUMS"
 
 echo ""
-echo ""
-echo "=== Creating boot.img ==="
-if command -v mkbootimg &>/dev/null; then
-    mkbootimg --kernel "${DIST_DIR}/Image" --ramdisk /dev/null \
-        --pagesize 4096 --base 0x00000000 --header_version 2 \
-        -o "${DIST_DIR}/boot.img"
-elif [ -f "/usr/local/bin/mkbootimg" ]; then
-    python3 /usr/local/bin/mkbootimg \
-        --kernel "${DIST_DIR}/Image" --ramdisk /dev/null \
-        --pagesize 4096 --base 0x00000000 --header_version 2 \
-        -o "${DIST_DIR}/boot.img"
-else
-    echo "  boot.img not created"
+echo "=== Creating boot.img with ramdisk (fastboot flash) ==="
+# Download stock LineageOS 23.2 boot.img for kebab (for ramdisk)
+STOCK_BOOT="/tmp/stock-boot.img"
+curl -sfL -o "${STOCK_BOOT}" "https://mirror.math.princeton.edu/pub/lineageos/full/kebab/20260313/boot.img" || \
+  echo "Stock boot download failed - using minimal boot"
+
+MAGISKBOOT="${PACKAGE_DIR}/tools/magiskboot"
+if [ -f "${STOCK_BOOT}" ] && [ -f "${MAGISKBOOT}" ]; then
+  cd "${PACKAGE_DIR}"
+  "${MAGISKBOOT}" unpack "${STOCK_BOOT}"
+  cp -f "${DIST_DIR}/Image" kernel
+  "${MAGISKBOOT}" repack "${STOCK_BOOT}" "${DIST_DIR}/boot.img"
+  echo "  boot.img: $(ls -lh ${DIST_DIR}/boot.img | awk '{print $5}')"
+  echo "  -> fastboot flash boot ${DIST_DIR}/boot.img"
+elif [ -f /usr/local/bin/mkbootimg ]; then
+  # Fallback: minimal boot.img (no ramdisk - fastboot boot only)
+  mkbootimg --kernel "${DIST_DIR}/Image" --ramdisk /dev/null \
+    --pagesize 4096 --base 0x00000000 --header_version 2 \
+    -o "${DIST_DIR}/boot.img"
+  echo "  boot.img: $(ls -lh ${DIST_DIR}/boot.img | awk '{print $5}') (no ramdisk - fastboot boot only)"
 fi
-test -f "${DIST_DIR}/boot.img" && ls -lh "${DIST_DIR}/boot.img" || true
+
 echo "=== Done ==="
