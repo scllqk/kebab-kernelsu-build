@@ -48,10 +48,12 @@ jobs:
           git -C "${KERNEL_DIR}" fetch --depth=1 origin "${KERNEL_REF}"
           git -C "${KERNEL_DIR}" checkout --detach FETCH_HEAD
 
-      - name: Setup mkbootimg
+      - name: Install mkbootimg
         run: |
-          sudo cp "${KERNEL_DIR}/scripts/mkbootimg/mkbootimg.py" /usr/local/bin/mkbootimg
-          echo "mkbootimg ready"
+          git clone --depth=1 https://android.googlesource.com/platform/system/tools/mkbootimg /tmp/mkbootimg
+          sudo cp /tmp/mkbootimg/mkbootimg.py /usr/local/bin/mkbootimg
+          chmod +x /usr/local/bin/mkbootimg
+          mkbootimg --help 2>&1 | head -2
 
       - name: Fetch AOSP Clang toolchain
         run: |
