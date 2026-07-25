@@ -22,30 +22,15 @@ cp "${DIST_DIR}/build-info.txt" "${PACKAGE_DIR}/build-info.txt"
 sha256sum "${DIST_DIR}/Image" "${DIST_DIR}/${ZIP_NAME}" > "${DIST_DIR}/SHA256SUMS"
 
 echo ""
-echo "=== Creating boot.img (with ramdisk for fastboot flash) ==="
-# Use stock boot.img from repo for ramdisk
-STOCK_BOOT="${ROOT_DIR}/stock-boot-kebab.img"
-MAGISKBOOT="${PACKAGE_DIR}/tools/magiskboot"
-if [ -f "${STOCK_BOOT}" ]; then
-  # Extract ramdisk from stock boot.img
-  cd "${ROOT_DIR}"
-  abootimg -x "${STOCK_BOOT}" 2>/dev/null || python3 -c "
-import struct, sys
-with open('${STOCK_BOOT}', 'rb') as f:
-    h = f.read(4096)
-    ks = struct.unpack_from('I', h, 8)[0]
-    rs = struct.unpack_from('I', h, 16)[0]
-    f.seek(4096 + ((ks + 4095) // 4096) * 4096)
-    with open('/tmp/initrd.img', 'wb') as o: o.write(f.read(rs))
-print('Ramdisk extracted')
-"
-  # Repack with new kernel + stock ramdisk
-  if [ -f /tmp/initrd.img ]; then
-    mkbootimg --kernel "${DIST_DIR}/Image" --ramdisk /tmp/initrd.img       --pagesize 4096 --base 0x00000000 --header_version 2       --cmdline "$(strings ${STOCK_BOOT} | grep -m1 'androidboot' 2>/dev/null || echo '')"       -o "${DIST_DIR}/boot.img"
-    echo "  boot.img: $(ls -lh ${DIST_DIR}/boot.img | awk '{print $5}')"
-    echo "  Usage: fastboot flash boot ${DIST_DIR}/boot.img"
-  fi
+echo "=== Creating boot.img (pure Python header v2) ==="
+cd "${ROOT_DIR}"
+if [ -f "${ROOT_DIR}/stock-boot-kebab.img" ]; then
+  python3 scripts/create-bootimg.py \
+    "${ROOT_DIR}/stock-boot-kebab.img" \
+    "${DIST_DIR}/Image" \
+    "${DIST_DIR}/boot.img"
+  echo "  Usage: fastboot flash boot ${DIST_DIR}/boot.img"
 else
-  echo "  boot.img not created (stock boot not found)"
+  echo "  boot.img not created - stock boot not found"
 fi
 echo "=== Done ==="
