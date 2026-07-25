@@ -38,7 +38,7 @@ jobs:
           sudo -S -p '' apt-get update
           sudo -S -p '' apt-get install --no-install-recommends -y \
             bc bison build-essential ca-certificates curl device-tree-compiler \
-            flex git libelf-dev libssl-dev lz4 python3 rsync unzip zip zstd
+            flex git libelf-dev libssl-dev lz4 python3 rsync unzip zip zstd abootimg
 
       - name: Fetch kernel source
         run: |

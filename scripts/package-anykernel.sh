@@ -26,14 +26,26 @@ echo "=== Creating boot.img (with ramdisk for fastboot flash) ==="
 # Use stock boot.img from repo for ramdisk
 STOCK_BOOT="${ROOT_DIR}/stock-boot-kebab.img"
 MAGISKBOOT="${PACKAGE_DIR}/tools/magiskboot"
-if [ -f "${STOCK_BOOT}" ] && [ -f "${MAGISKBOOT}" ]; then
-  cd "${PACKAGE_DIR}"
-  "${MAGISKBOOT}" unpack "${STOCK_BOOT}"
-  cp -f "${DIST_DIR}/Image" kernel
-  "${MAGISKBOOT}" repack "${STOCK_BOOT}" "${DIST_DIR}/boot.img"
-  echo "  boot.img: $(ls -lh ${DIST_DIR}/boot.img | awk '{print $5}')"
-  echo "  Usage: fastboot flash boot ${DIST_DIR}/boot.img"
+if [ -f "${STOCK_BOOT}" ]; then
+  # Extract ramdisk from stock boot.img
+  cd "${ROOT_DIR}"
+  abootimg -x "${STOCK_BOOT}" 2>/dev/null || python3 -c "
+import struct, sys
+with open('${STOCK_BOOT}', 'rb') as f:
+    h = f.read(4096)
+    ks = struct.unpack_from('I', h, 8)[0]
+    rs = struct.unpack_from('I', h, 16)[0]
+    f.seek(4096 + ((ks + 4095) // 4096) * 4096)
+    with open('/tmp/initrd.img', 'wb') as o: o.write(f.read(rs))
+print('Ramdisk extracted')
+"
+  # Repack with new kernel + stock ramdisk
+  if [ -f /tmp/initrd.img ]; then
+    mkbootimg --kernel "${DIST_DIR}/Image" --ramdisk /tmp/initrd.img       --pagesize 4096 --base 0x00000000 --header_version 2       --cmdline "$(strings ${STOCK_BOOT} | grep -m1 'androidboot' 2>/dev/null || echo '')"       -o "${DIST_DIR}/boot.img"
+    echo "  boot.img: $(ls -lh ${DIST_DIR}/boot.img | awk '{print $5}')"
+    echo "  Usage: fastboot flash boot ${DIST_DIR}/boot.img"
+  fi
 else
-  echo "  boot.img not created"
+  echo "  boot.img not created (stock boot not found)"
 fi
 echo "=== Done ==="
