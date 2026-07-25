@@ -50,10 +50,16 @@ jobs:
 
       - name: Install mkbootimg
         run: |
-          git clone --depth=1 https://android.googlesource.com/platform/system/tools/mkbootimg /tmp/mkbootimg
-          sudo cp /tmp/mkbootimg/mkbootimg.py /usr/local/bin/mkbootimg
+          if [ -f "${KERNEL_DIR}/scripts/mkbootimg/mkbootimg.py" ]; then
+            sudo cp "${KERNEL_DIR}/scripts/mkbootimg/mkbootimg.py" /usr/local/bin/mkbootimg
+            echo "Using kernel source mkbootimg"
+          else
+            git clone --depth=1 https://android.googlesource.com/platform/system/tools/mkbootimg /tmp/mkbootimg
+            sudo cp /tmp/mkbootimg/mkbootimg.py /usr/local/bin/mkbootimg
+            echo "Using AOSP mkbootimg (kernel source didn't have it)"
+          fi
           chmod +x /usr/local/bin/mkbootimg
-          mkbootimg --help 2>&1 | head -2
+          mkbootimg --help 2>&1 | head -1
 
       - name: Fetch AOSP Clang toolchain
         run: |
