@@ -278,20 +278,37 @@ for opt in \
   CONFIG_KSU_SUSFS=y \
   CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y \
   CONFIG_KSU_SUSFS_SPOOF_UNAME=y \
-  CONFIG_KSU_SAFE_SECURITY_FILESYSTEM=y; do
+  CONFIG_KSU_SAFE_SECURITY_FILESYSTEM=y \
+  CONFIG_KSU_HIDE_PID=y \
+  CONFIG_KSU_UNSHARE=y; do
   name="${opt%=*}"
   val="${opt#*=}"
   if grep -q "^${name}=" "${OUT_DIR}/.config"; then
-    # Already present - verify value
     if ! grep -qx "${name}=${val}" "${OUT_DIR}/.config"; then
       sed -i "s/^${name}=.*/${name}=${val}/" "${OUT_DIR}/.config"
       echo "  Fixed ${name}=${val}"
     fi
   else
-    # Not present - append
     echo "${name}=${val}" >> "${OUT_DIR}/.config"
     echo "  Added ${name}=${val}"
   fi
+done
+
+# Disable debug/trace features that expose kernel internals to userspace
+# (bmbxwbh approach - makes kernel harder to detect by anti-rooting apps)
+for opt in \
+  CONFIG_DEBUG_FS=n \
+  CONFIG_PROC_KCORE=n \
+  CONFIG_DEBUG_KERNEL=n \
+  CONFIG_DEBUG_INFO=n; do
+  name="${opt%=*}"
+  val="${opt#*=}"
+  if grep -q "^${name}=" "${OUT_DIR}/.config"; then
+    sed -i "s/^${name}=.*/${name}=${val}/" "${OUT_DIR}/.config"
+  else
+    echo "${name}=${val}" >> "${OUT_DIR}/.config"
+  fi
+  echo "  Disabled ${name} (hardening)"
 done
 
 echo "Building Image"
