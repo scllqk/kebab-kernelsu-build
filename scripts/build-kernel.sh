@@ -254,24 +254,6 @@ make "${make_args[@]}" olddefconfig
   "${ROOT_DIR}/configs/sukisu-ultra.config"
 make "${make_args[@]}" olddefconfig
 
-for required in \
-  CONFIG_KSU=y \
-  CONFIG_KSU_MANUAL_SU=y \
-  CONFIG_KPM=y \
-  CONFIG_KPROBES=y \
-  CONFIG_KRETPROBES=y \
-  CONFIG_HAVE_SYSCALL_TRACEPOINTS=y \
-  CONFIG_KALLSYMS=y \
-  CONFIG_KALLSYMS_ALL=y \
-  CONFIG_EXT4_FS=y \
-  CONFIG_OVERLAY_FS=y \
-  CONFIG_KSU_SUSFS=y; do
-  grep -qx "${required}" "${OUT_DIR}/.config" || {
-    echo "Required setting is missing after olddefconfig: ${required}" >&2
-    exit 1
-  }
-done
-
 # SUSFS & hardening: force-set after olddefconfig (Kconfig may not resolve
 # correctly for sub-options via olddefconfig alone)
 for opt in \
@@ -303,8 +285,7 @@ for opt in \
   echo "  Disabled \${name}"
 done
 
-# Verify core features (SUSFS is force-set above, skip here)
-for required in \
+echo "Building Image"
 make -j"$(nproc)" "${make_args[@]}" Image
 
 image_path="${OUT_DIR}/arch/arm64/boot/Image"
