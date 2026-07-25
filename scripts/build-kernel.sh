@@ -263,12 +263,8 @@ if [ -f "${SUSFS_KCONFIG}" ]; then
     KSU_SUSFS KSU_SUSFS_SUS_PATH KSU_SUSFS_SUS_MOUNT \
     KSU_SUSFS_SPOOF_UNAME KSU_SUSFS_ENABLE_LOG; do
     if ! grep -q "^config ${cfg_name}$" "${SUSFS_KCONFIG}"; then
-      cat >> "${SUSFS_KCONFIG}" << KCONFIG
-
-config ${cfg_name}
-\tbool "SUSFS ${cfg_name#KSU_SUSFS_}"
-\tdefault y
-KCONFIG
+      printf '\nconfig %s\n\tbool "SUSFS %s"\n\tdefault y\n' \
+        "${cfg_name}" "${cfg_name#KSU_SUSFS_}" >> "${SUSFS_KCONFIG}"
       echo "  Added Kconfig entry: ${cfg_name}"
     fi
   done
